@@ -42,6 +42,9 @@ Z-MUSIC v2のファンクションコールを呼び出すためのC言語用ラ
 なお、libzm2internal.hはライブラリ内部で使用するファイルなので
 直接のインクルードはしないで下さい。
 
+Z-MUSICのファンクションコールについて理解しておく必要があります。Z-MUSICマニュアル、特に
+『MEASURE10 ZMUSICのファンクションコール』を読んで下さい(一部誤記があるので注意して下さい)。
+
 
 ## zm2call
 
@@ -84,4 +87,5 @@ GNU GENERAL PUBLIC LICENSE Version 3 or later.
 
 
 ## Author
+
 TcbnErik / https://github.com/kg68k/libzm2

@@ -315,7 +315,7 @@ zm2_m_play2(void) {
 }
 
 static inline zm2__nonnull int32_t  //
-zm2_adpcm_read(struct Zm2AdpcmConf* conf, const char* filename) {
+zm2_adpcm_read(const struct Zm2AdpcmConf* conf, const char* filename) {
   register const char* reg_a1 zm2__reg("a1") = filename;
   register uint32_t reg_d1 zm2__reg("d1") = 0x10;
   register int32_t reg_d0 zm2__reg("d0");
