@@ -29,21 +29,25 @@ Z-MUSIC v2のファンクションコールを呼び出すためのC言語用ラ
 > [ここのstdint.h](https://github.com/kg68k/x68.memo/blob/main/prog/libc/include/stdint.h)
 > を使って下さい。
 
+> [!IMPORTANT]
+> Z-MUSICのファンクションコールについて理解しておく必要があります。Z-MUSICマニュアル、特に
+> 『MEASURE10 ZMUSICのファンクションコール』を読んで下さい(一部誤記があるので注意して下さい)。
+
 必要に応じてinclude/ディレクトリにあるヘッダファイルをインクルードして下さい。
 
 * libzm2.h …… 基本のファイルです。
 * libzm2const.h …… 各種の定数を定義したファイルです。
 * libzm2error.h …… エラー番号を定義したファイルです。
 * libzm2midi.h …… MIDI関連のファンクションコールを定義したファイルです。
+* libzm2work.h …… Z-MUSICのワークの構造を定義したファイルです。
 
 ヘッダファイルはASCIIコードだけで書いてあるため、
 どのビルド環境でも文字コード変換は不要でそのまま使えます。
 
-なお、libzm2internal.hはライブラリ内部で使用するファイルなので
-直接のインクルードはしないで下さい。
+libzm2work.hはGCCの拡張機能(匿名構造体や`__attribute__((__packed__))`)を使っているため、
+elf2x68k専用です。
 
-Z-MUSICのファンクションコールについて理解しておく必要があります。Z-MUSICマニュアル、特に
-『MEASURE10 ZMUSICのファンクションコール』を読んで下さい(一部誤記があるので注意して下さい)。
+libzm2internal.hはライブラリ内部で使用するファイルなので直接のインクルードはしないで下さい。
 
 
 ## zm2call

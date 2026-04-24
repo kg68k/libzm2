@@ -31,6 +31,22 @@
 extern "C" {
 #endif
 
+enum { ZM2_CNV_WK_SIZE = 140 };   // struct Zm2CnvWk
+enum { ZM2_SEQ_WK_SIZE = 256 };   // struct Zm2SeqWk
+enum { ZM2_BUF_INFO_SIZE = 76 };  // struct Zm2BufferInfo
+enum { ZM2_STATUS_SIZE = 238 };   // struct Zm2Status
+
+enum {  // Zm2Status::rs_midi
+  ZM2_RSMIDI_RS232C = -1,
+  ZM2_RSMIDI_CZ6BM1 = 0,
+  ZM2_RSMIDI_POLYPHON = 1,
+};
+
+enum {  // Zm2Status::juke_mode
+  ZM2_JUKEMODE_JUKEBOX_BIT = 0,
+  ZM2_JUKEMODE_CONTROL_BIT = 1,
+};
+
 struct Zm2Tracks {
   uint32_t d[3];  // [0] = tr32..1, [1] = tr64..33, [2] = tr80..65
 };
@@ -70,8 +86,8 @@ struct Zm2TrkTblResult {
 };
 
 struct Zm2PlayWorkResult {
-  const void* cnv_wk;
-  const void* seq_wk;
+  const struct Zm2CnvWk* cnv_wk;
+  const struct Zm2SeqWk* seq_wk;
 };
 
 struct Zm2OccupiedSize {
@@ -400,7 +416,8 @@ zm2_loop_time_cancel(void) {
 static inline struct Zm2PlayWorkResult  //
 zm2_get_play_work(uint8_t track) {
   struct Zm2_TupleResult t = zm2__func_d2_tuple(0x3c, track);
-  return (struct Zm2PlayWorkResult){(const void*)t.d0, (const void*)t.a0};
+  return (struct Zm2PlayWorkResult)  //
+      {(const struct Zm2CnvWk*)t.d0, (const struct Zm2SeqWk*)t.a0};
 }
 
 static inline int32_t  //
@@ -448,9 +465,9 @@ zm2_mask_channels(uint32_t channels) {
   return zm2__func_d2(0x44, channels);
 }
 
-static inline void*  //
+static inline struct Zm2BufferInfo*  //
 zm2_buffer_info(void) {
-  return (void*)zm2__func_tuple(0x45).a0;
+  return (struct Zm2BufferInfo*)zm2__func_tuple(0x45).a0;
 }
 
 static inline zm2__nonnull int32_t  //
@@ -507,6 +524,11 @@ zm2_zm_status(void) {
   return (void*)zm2__func_tuple(0x50).a0;
 }
 
+static inline struct Zm2Status*  //
+zm2_get_status(void) {
+  return (struct Zm2Status*)(zm2__func_tuple(0x50).a0 - 0x86);
+}
+
 static inline void  //
 zm2_relative_uv(uint32_t mode) {
   zm2__func_d2(0x53, mode);
@@ -523,8 +545,8 @@ zm2_occupied_size(struct Zm2OccupiedSize* buf) {
 }
 
 static inline zm2__nonnull void  //
-zm2_call_int_play_ope(void* seq_wk) {
-  register const void* reg_a5 zm2__reg("a5") = seq_wk;
+zm2_call_int_play_ope(struct Zm2SeqWk* seq_wk) {
+  register struct Zm2SeqWk* reg_a5 zm2__reg("a5") = seq_wk;
   register uint32_t reg_d1 zm2__reg("d1") = 0x58;
 
   zm2__asm("trap #3" : : "d"(reg_d1), "a"(reg_a5) : "d0", "a0");

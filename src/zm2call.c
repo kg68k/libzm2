@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #define PROGRAM "zm2call"
-#define VERSION "0.1.0"
+#define VERSION "0.2.0-dev"
 
 #include <errno.h>
 #include <stdint.h>
@@ -45,13 +45,16 @@ void* _dos_malloc0(int md, int size, struct _mep* mep);
 int _dos_mfree(void* memptr);
 #endif
 
-// Cランタイムが持つ変数で、自分自身のプロセスのメモリ管理ポインタ+0x100を示す
-extern void* _PSTA;
-
 #include "compat.h"
 #include "libzm2.h"
 #include "libzm2const.h"
 #include "libzm2midi.h"
+
+#if defined(__GNUC__) && __GNUC__ < 3
+#define NO_LIBZM2WORK
+#else
+#include "libzm2work.h"
+#endif
 
 typedef struct {
   const char* name;
@@ -384,7 +387,7 @@ int MVset(char** args) {
   if (StrToUint32(*args++, &no, nullptr) < 0) return EXIT_FAILURE;
   if (LoadFmToneFromFile(*args++, &buf) < 0) return EXIT_FAILURE;
 
-#if __GNUC__ < 2
+#if defined(__GNUC__) && (__GNUC__ < 2)
   // gcc 1.xだと警告がでるので明示的にキャストしている
   result = zm2_m_vset(no, (const Zm2FmTone*)&buf);
 #else
@@ -659,7 +662,7 @@ static uint8_t* ReadFileToHeap(const char* filename, size_t* filesize) {
 
 static struct _mep* GetHumanMep(void) {
   int ssp = _dos_super(0);
-  struct _mep* mep = (struct _mep*)((char*)_PSTA - 0x100);
+  struct _mep* mep = (struct _mep*)((char*)_dos_getpdb() - sizeof(struct _mep));
 
   while (mep->parent_mp) mep = mep->parent_mp;
 
@@ -989,7 +992,7 @@ int MVset2(char** args) {
   if (StrToUint32(*args++, &no, nullptr) < 0) return EXIT_FAILURE;
   if (LoadFmToneFromFile(*args++, &buf) < 0) return EXIT_FAILURE;
 
-#if __GNUC__ < 2
+#if defined(__GNUC__) && (__GNUC__ < 2)
   // gcc 1.xだと警告がでるので明示的にキャストしている
   result = zm2_m_vset2(no, (const Zm2FmTone*)&buf);
 #else
@@ -1064,8 +1067,14 @@ static void PrintPlayTrkTbl(const uint8_t* p) {
 
 int GetTrkTbl(UNUSED char** args) {
   struct Zm2TrkTblResult t = zm2_get_trk_tbl();
+
+  // 各ポインタの指す先はスーパーバイザ領域の可能性があるので
+  // スーパーバイザモードに切り替えておく
+  int ssp = _dos_super(0);
   PrintRealChTbl(t.real_ch_tbl);
   PrintPlayTrkTbl(t.play_trk_tbl);
+  _dos_super(ssp);
+
   return EXIT_SUCCESS;
 }
 
@@ -1094,7 +1103,6 @@ int SetLoopTime(char** args) {
 
 int GetPlayWork(char** args) {
   uint8_t track;
-  struct Zm2PlayWorkResult w;
 
   if (StrToUint8(*args++, &track, nullptr) < 0) return -1;
 
@@ -1104,10 +1112,11 @@ int GetPlayWork(char** args) {
     return EXIT_FAILURE;
   }
 
-  w = zm2_get_play_work(track);
-  printf("コンパイルワーク: 0x%08x, 演奏トラックワーク: 0x%08x\n",
-         (unsigned int)w.cnv_wk, (unsigned int)w.seq_wk);
-
+  {
+    struct Zm2PlayWorkResult w = zm2_get_play_work(track);
+    printf("コンパイルワーク: 0x%08x, 演奏トラックワーク: 0x%08x\n",
+           (unsigned int)w.cnv_wk, (unsigned int)w.seq_wk);
+  }
   return EXIT_SUCCESS;
 }
 
@@ -1224,8 +1233,57 @@ int MaskChannels(char** args) {
   return EXIT_SUCCESS;
 }
 
+static void PrintBufferInfo(const struct Zm2BufferInfo* p) {
+#ifdef NO_LIBZM2WORK
+  fprintf(stderr, "gcc/gcc2ビルドのため-vオプションを無視します。\n");
+#else
+
+  // スーパーバイザ領域の可能性があるのでスーパーバイザモードに切り替えておく
+  int ssp = _dos_super(0);
+
+#define PTR(jp, key) printf(jp " " #key " = 0x%08x\n", (unsigned int)p->key);
+#define SIZ(jp, key) printf(jp " " #key " = %u\n", (unsigned int)p->key);
+  PTR("トラックバッファ先頭アドレス", trk_top);
+  SIZ("トラックバッファのサイズ", trk_buf_size);
+  PTR("トラックバッファ終了アドレス", trk_buf_end);
+  // dev_end_adrはtrk_buf_endの別名なので省略
+  PTR("ADPCMバッファ先頭アドレス", adpcm_buffer_top);
+  SIZ("ADPCMバッファのサイズ", adpcm_buffer_size);
+  PTR("ADPCMバッファ終了アドレス", adpcm_buffer_end);
+  PTR("汎用ワークエリア先頭アドレス", adpcm_work_top);
+  SIZ("汎用ワークエリアのサイズ", adpcm_work_size);
+  PTR("汎用ワークエリア終了アドレス", adpcm_work_end);
+  PTR("新規ADPCM格納アドレス", adpcm_buffer_next);
+  PTR("汎用ワーク使用可能開始アドレス", adpcm_work_now);
+  SIZ("汎用ワークエリアの本当のサイズ", adpcm_work_true_size);
+  PTR("演奏トラックワーク格納アドレス", seq_wk_tbl);
+  PTR("効果音トラックワーク格納アドレス", seq_wk_tbl2);
+  PTR("ADPCM管理テーブル格納アドレス", adpcm_tbl);
+  PTR("波形メモリ管理テーブル格納アドレス", wave_tbl);
+  PTR("FM音源音色バッファアドレス", neiro);
+  PTR("各トラック先頭アドレスの格納テーブルアドレス", trk_po_tbl);
+  PTR("m_allocで確保した各トラックのサイズ格納アドレス", trk_len_tbl);
+#undef PTR
+#undef SIZE
+
+  _dos_super(ssp);
+#endif
+}
+
 int BufferInfo(UNUSED char** args) {
-  PrintResultAddress(zm2_buffer_info());
+  const struct Zm2BufferInfo* bufinfo;
+
+  int verbose = 0;
+  if (*args && strcmp(*args, "-v") == 0) {
+    // -v: 詳細表示モード
+    args += 1;
+    verbose = 1;
+  }
+
+  bufinfo = zm2_buffer_info();
+  PrintResultAddress(bufinfo);
+  if (verbose) PrintBufferInfo(bufinfo);
+
   return EXIT_SUCCESS;
 }
 
@@ -1371,8 +1429,12 @@ int GetLoopTime(UNUSED char** args) {
 int Get1stComment(UNUSED char** args) {
   const char* s = zm2_get_1st_comment();
 
+  // 文字列はスーパーバイザ領域の可能性があるので
+  // スーパーバイザモードに切り替えておく
+  int ssp = _dos_super(0);
   printf("コメント: 0x%08x\n ", (unsigned int)s);
   puts(s);
+  _dos_super(ssp);
 
   return EXIT_SUCCESS;
 }
@@ -1384,6 +1446,77 @@ int IntStart(UNUSED char** args) {
 
 int ZmStatus(UNUSED char** args) {
   PrintResultAddress(zm2_zm_status());
+  return EXIT_SUCCESS;
+}
+
+#ifndef NO_LIBZM2WORK
+static void PrintZmStatusErrCode(const struct Zm2Status* p) {
+  size_t i;
+  const char* prefix = "err_code = ";
+  for (i = 0; i < sizeof(p->err_code); i += 1) {
+    printf("%s%d", prefix, p->err_code[i]);
+    prefix = ",";
+  }
+  printf("\n");
+}
+#endif
+
+static void PrintZmusicStatus(const struct Zm2Status* p) {
+#ifdef NO_LIBZM2WORK
+  fprintf(stderr, "gcc/gcc2ビルドのためポインタの値のみ表示します。\n");
+  PrintResultAddress(p);
+#else
+
+  // スーパーバイザ領域の可能性があるのでスーパーバイザモードに切り替えておく
+  int ssp = _dos_super(0);
+
+#define INT(key) printf(#key " = %d\n", (int)p->key);
+#define UINT(key) printf(#key " = %u\n", (unsigned int)p->key);
+
+  UINT(sc55_id);
+  UINT(mt32_id);
+  UINT(u220_id);
+  UINT(m1_id);
+  UINT(loop_chk);
+  INT(ps_flg);
+  UINT(frq);
+  UINT(y3);
+  UINT(noise_mode);
+  printf("first_cmt = %s\n", p->first_cmt);
+  UINT(pcm8_ch);
+  INT(ch_tr_msk);
+  INT(ch_tr_opl);
+  UINT(mclk);
+  INT(se_mode);
+  INT(cmd_or_dev);
+  INT(timer_a_mode);
+  INT(synchro_mode);
+  INT(mfp_mode);
+  INT(no_init_mode);
+  INT(trace_mode);
+  UINT(m_tmp_buf);
+  UINT(timer_value);
+  UINT(zmusic_int);
+  PrintZmStatusErrCode(p);
+  INT(midi_board);
+  INT(rs_midi);
+  INT(emulate_mode);
+  INT(pcm8_flg);
+  INT(poly_ch);
+  UINT(juke_mode);
+  INT(timer_flg);
+  printf("last_fn = %s\n", p->last_fn);
+  UINT(date_buf);
+
+#undef UINT
+#undef INT
+
+  _dos_super(ssp);
+#endif
+}
+
+int GetStatus(UNUSED char** args) {
+  PrintZmusicStatus(zm2_get_status());
   return EXIT_SUCCESS;
 }
 
@@ -1459,7 +1592,8 @@ int OccupiedSize(UNUSED char** args) {
   return EXIT_SUCCESS;
 }
 
-static int GetSeqWkList(struct Zm2Tracks* tracks, void** seq_wk_tbl) {
+static int GetSeqWkList(  //
+    struct Zm2Tracks* tracks, const struct Zm2SeqWk** seq_wk_tbl) {
   int count = 0;
   uint32_t track;
 
@@ -1468,7 +1602,7 @@ static int GetSeqWkList(struct Zm2Tracks* tracks, void** seq_wk_tbl) {
     zm2_tracks_isset(tracks, track, &isset);
     if (isset) {
       struct Zm2PlayWorkResult w = zm2_get_play_work(track);
-      *seq_wk_tbl++ = (void*)w.seq_wk;
+      *seq_wk_tbl++ = w.seq_wk;
       count += 1;
     }
   }
@@ -1495,7 +1629,7 @@ int InputLoopCount(int default_value) {
 int CallIntPlayOpe(char** args) {
   struct Zm2Tracks tracks;
   int track_count;
-  void* seq_wk_tbl[ZM2_TRACK_COUNT];
+  const struct Zm2SeqWk* seq_wk_tbl[ZM2_TRACK_COUNT];
   int loop_count = 64;
 
   if (ParseTrackList(*args++, &tracks) < 0) return EXIT_FAILURE;
@@ -1524,7 +1658,7 @@ int CallIntPlayOpe(char** args) {
     for (lp = 0; lp < loop_count; lp += 1) {
       int index;
       for (index = 0; index < track_count; index += 1) {
-        zm2_call_int_play_ope(seq_wk_tbl[index]);
+        zm2_call_int_play_ope((struct Zm2SeqWk*)seq_wk_tbl[index]);
       }
     }
   }
@@ -1636,7 +1770,7 @@ static const Command commands[] = {
     {"set_mclk", SetMclk, "<count>"},
     {"picture_sync", PictureSync, "<mode>"},
     {"mask_channels", MaskChannels, "<channel,…>"},
-    {"buffer_info", BufferInfo, nullptr},
+    {"buffer_info", BufferInfo, "[-v]"},
     {"set_zpd_tbl", SetZpdTbl, "<filename>"},
     {"set_output_level", SetOutputLevel, "[channel,…] [level]"},
     // {"eox_wait", EoxWait, "<wait>"},
@@ -1648,6 +1782,7 @@ static const Command commands[] = {
     {"get_1st_comment", Get1stComment, nullptr},
     {"int_start", IntStart, nullptr},
     {"zm_status", ZmStatus, nullptr},
+    {"get_status", GetStatus, nullptr},
     // {"sc55_init", Sc55Init, "<devid>"},
     // {"mt32_init", Mt32Init, "<devid>"},
     {"relative_uv", RelativeUv, "<mode>"},
@@ -1686,9 +1821,32 @@ static int PrintUsage(void) {
   return EXIT_FAILURE;
 };
 
+#ifndef NO_LIBZM2WORK
+static int ValidateStSize(size_t actual, size_t expected, const char* name) {
+  if (actual == expected) return 0;
+
+  fprintf(stderr, "内部エラー: struct %sの大きさが正しくありません。\n", name);
+  return 1;
+}
+#endif
+
+static int ValidateStructSize(void) {
+  int err = 0;
+#ifndef NO_LIBZM2WORK
+  err += ValidateStSize(sizeof(struct Zm2CnvWk), ZM2_CNV_WK_SIZE, "Zm2CnvWk");
+  err += ValidateStSize(sizeof(struct Zm2SeqWk), ZM2_SEQ_WK_SIZE, "Zm2SeqWk");
+  err += ValidateStSize(sizeof(struct Zm2BufferInfo), ZM2_BUF_INFO_SIZE,
+                        "Zm2BufferInfo");
+  err += ValidateStSize(sizeof(struct Zm2Status), ZM2_STATUS_SIZE, "Zm2Status");
+#endif
+  return err;
+}
+
 int main(int argc, char* argv[]) {
   const Command* cmd;
   const char* comamnd_name = (argc >= 2) ? argv[1] : nullptr;
+
+  if (ValidateStructSize() != 0) return EXIT_FAILURE;
 
   if (!comamnd_name) return PrintUsage();
 
