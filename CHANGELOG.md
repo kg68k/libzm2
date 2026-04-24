@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### FUNCTIONS.md
+* [関数リファレンスマニュアル](FUNCTIONS.md)を追加。
+
 ### libzm2work.h
 * 各種ワークの構造を定義するヘッダファイルを追加。
 
