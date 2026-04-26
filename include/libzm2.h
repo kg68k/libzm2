@@ -31,22 +31,6 @@
 extern "C" {
 #endif
 
-enum { ZM2_CNV_WK_SIZE = 140 };   // struct Zm2CnvWk
-enum { ZM2_SEQ_WK_SIZE = 256 };   // struct Zm2SeqWk
-enum { ZM2_BUF_INFO_SIZE = 76 };  // struct Zm2BufferInfo
-enum { ZM2_STATUS_SIZE = 238 };   // struct Zm2Status
-
-enum {  // Zm2Status::rs_midi
-  ZM2_RSMIDI_RS232C = -1,
-  ZM2_RSMIDI_CZ6BM1 = 0,
-  ZM2_RSMIDI_POLYPHON = 1,
-};
-
-enum {  // Zm2Status::juke_mode
-  ZM2_JUKEMODE_JUKEBOX_BIT = 0,
-  ZM2_JUKEMODE_CONTROL_BIT = 1,
-};
-
 struct Zm2Tracks {
   uint32_t d[3];  // [0] = tr32..1, [1] = tr64..33, [2] = tr80..65
 };
@@ -141,21 +125,6 @@ zm2_tracks_isset(struct Zm2Tracks* tracks, uint32_t track, int* isset) {
 
   if (tracks->d[tr / 32] &= mask) *isset = 1;
   return 0;
-}
-
-static const char* zm2__get_trap3_entry(void) {
-  const uint32_t id1 = 0x5a6d7553;  // "ZmuS"
-  const uint16_t id2 = 0x6943;      // "iC"
-
-  const char* vec;
-  zm2__asm("move.l (0x8c),%0" : "=r"(vec));  // trap #3 vector
-
-  if (*(const uint32_t*)(vec - 8) == id1 &&
-      *(const uint16_t*)(vec - 4) == id2) {
-    uint16_t version = *(const uint16_t*)(vec - 2);
-    if (version < 0x3000) return vec;
-  }
-  return nullptr;
 }
 
 static inline int32_t  //

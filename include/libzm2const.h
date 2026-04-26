@@ -27,6 +27,25 @@
 extern "C" {
 #endif
 
+// sizeof(struct ...)
+enum { ZM2_CNV_WK_SIZE = 140 };   // struct Zm2CnvWk
+enum { ZM2_SEQ_WK_SIZE = 256 };   // struct Zm2SeqWk
+enum { ZM2_BUF_INFO_SIZE = 76 };  // struct Zm2BufferInfo
+enum { ZM2_STATUS_SIZE = 238 };   // struct Zm2Status
+
+// Zm2Status::rs_midi
+enum {
+  ZM2_RSMIDI_RS232C = -1,
+  ZM2_RSMIDI_CZ6BM1 = 0,
+  ZM2_RSMIDI_POLYPHON = 1,
+};
+
+// Zm2Status::juke_mode
+enum {
+  ZM2_JUKEMODE_JUKEBOX_BIT = 0,
+  ZM2_JUKEMODE_CONTROL_BIT = 1,
+};
+
 #define ZM2_ZMD_MIN_SIZE 12
 #define ZM2_ZMD_ID "\x10ZmuSiC"
 #define ZM2_ZMD_ID_LEN 7

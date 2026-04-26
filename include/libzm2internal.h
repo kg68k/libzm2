@@ -62,6 +62,21 @@ struct Zm2_TupleResult {
   int32_t a0;
 };
 
+static const char* zm2__get_trap3_entry(void) {
+  const uint32_t id1 = 0x5a6d7553;  // "ZmuS"
+  const uint16_t id2 = 0x6943;      // "iC"
+
+  const char* vec;
+  zm2__asm("move.l (0x8c),%0" : "=r"(vec));  // trap #3 vector
+
+  if (*(const uint32_t*)(vec - 8) == id1 &&
+      *(const uint16_t*)(vec - 4) == id2) {
+    uint16_t version = *(const uint16_t*)(vec - 2);
+    if (version < 0x3000) return vec;
+  }
+  return nullptr;
+}
+
 static inline int32_t  //
 zm2__func(uint32_t func) {
   register uint32_t reg_d1 zm2__reg("d1") = func;
