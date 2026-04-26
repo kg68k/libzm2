@@ -1461,18 +1461,18 @@ static void PrintZmStatusErrCode(const struct Zm2Status* p) {
 }
 #endif
 
-static void PrintZmusicStatus(const struct Zm2Status* p) {
+int PrintZmusicStatus(UNUSED char** args) {
+  const struct Zm2Status* p = zm2_get_status();
+
 #ifdef NO_LIBZM2WORK
   fprintf(stderr, "gcc/gcc2ビルドのためポインタの値のみ表示します。\n");
   PrintResultAddress(p);
 #else
-
   // スーパーバイザ領域の可能性があるのでスーパーバイザモードに切り替えておく
   int ssp = _dos_super(0);
 
 #define INT(key) printf(#key " = %d\n", (int)p->key);
 #define UINT(key) printf(#key " = %u\n", (unsigned int)p->key);
-
   UINT(sc55_id);
   UINT(mt32_id);
   UINT(u220_id);
@@ -1507,16 +1507,11 @@ static void PrintZmusicStatus(const struct Zm2Status* p) {
   INT(timer_flg);
   printf("last_fn = %s\n", p->last_fn);
   UINT(date_buf);
-
 #undef UINT
 #undef INT
 
   _dos_super(ssp);
 #endif
-}
-
-int GetStatus(UNUSED char** args) {
-  PrintZmusicStatus(zm2_get_status());
   return EXIT_SUCCESS;
 }
 
@@ -1697,6 +1692,7 @@ static const Command commands[] = {
     {"*help", PrintCommandUsage, "<command>"},
     {"*version", PrintZmusicVersion, nullptr},
     {"*spec", PrintZmusicSpec, nullptr},
+    {"status", PrintZmusicStatus, nullptr},
     {"m_init", MInit, nullptr},
     {"m_alloc", MAlloc, "<track> <size>"},
     {"m_assign", MAssign, "<channel> <track>"},
@@ -1782,7 +1778,6 @@ static const Command commands[] = {
     {"get_1st_comment", Get1stComment, nullptr},
     {"int_start", IntStart, nullptr},
     {"zm_status", ZmStatus, nullptr},
-    {"get_status", GetStatus, nullptr},
     // {"sc55_init", Sc55Init, "<devid>"},
     // {"mt32_init", Mt32Init, "<devid>"},
     {"relative_uv", RelativeUv, "<mode>"},

@@ -17,7 +17,7 @@
 * Z-MUSICをデバイスドライバとして組み込んでいると、get_trk_tblとget_1st_comment
   でバスエラーが発生する不具合を修正。
 * 自分自身のPSPを求める方法を、ランタイムの`_PSTA`変数の参照から`_dos_getpdb()`に変更。
-* get_statusコマンドを追加。
+* statusコマンドを追加。
 
 
 ## 0.1.0 (preview)
