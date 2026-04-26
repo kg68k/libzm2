@@ -1,6 +1,6 @@
 # 変更履歴
 
-## Unreleased
+## 0.2.0 (preview)
 
 ### FUNCTIONS.md
 * [関数リファレンスマニュアル](FUNCTIONS.md)を追加。
