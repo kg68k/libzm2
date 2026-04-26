@@ -4,40 +4,6 @@
 
 ## libzm2.h - メイン関数
 
-### `zm2_tracks_set()`
-```c
-int zm2_tracks_set(struct Zm2Tracks* tracks, uint32_t track)
-```
-* 説明: 指定したトラック番号のビットを`1`にします。
-  * この関数は`struct Zm2Tracks`を操作するためのユーティリティ関数です。
-* 引数:
-  * `tracks`: `struct Zm2Tracks`へのポインタ
-  * `track`: トラック番号 (1-80)
-* 戻り値: 成功時は0、失敗時は-1
-
-### `zm2_tracks_clear()`
-```c
-int zm2_tracks_clear(struct Zm2Tracks* tracks, uint32_t track)
-```
-* 説明: 指定したトラック番号のビットを`1`にします。
-  * この関数は`struct Zm2Tracks`を操作するためのユーティリティ関数です。
-* 引数:
-  * `tracks`: `struct Zm2Tracks`へのポインタ
-  * `track`: トラック番号 (1-80)
-* 戻り値: 成功時は0、失敗時は-1
-
-### `zm2_tracks_isset()`
-```c
-int zm2_tracks_isset(struct Zm2Tracks* tracks, uint32_t track, int* isset)
-```
-* 説明: 指定されたトラック番号のビットが`1`かどうかを調べます。
-  * この関数は`struct Zm2Tracks`を操作するためのユーティリティ関数です。
-* 引数:
-  * `tracks`: `struct Zm2Tracks`へのポインタ
-  * `track`: トラック番号 (1-80)
-  * `isset`: 結果を格納するポインタ (0または1)
-* 戻り値: 成功時は0、失敗時は-1
-
 ### `zm2_get_version_super()`
 ```c
 int32_t zm2_get_version_super(void)
@@ -1043,5 +1009,43 @@ int32_t zm2_m_out1(uint8_t data)
 * 引数:
   * `data`: 出力データ
 * 戻り値: Z-MUSICエラーコード
+
+--------
+
+## libzm2util.h - ユーティリティ関数
+
+### `zm2_tracks_set()`
+```c
+int zm2_tracks_set(struct Zm2Tracks* tracks, uint32_t track)
+```
+* 説明: 指定したトラック番号のビットを`1`にします。
+  * この関数は`struct Zm2Tracks`を操作するためのユーティリティ関数です。
+* 引数:
+  * `tracks`: `struct Zm2Tracks`へのポインタ
+  * `track`: トラック番号 (1-80)
+* 戻り値: 成功時は0、失敗時は-1
+
+### `zm2_tracks_clear()`
+```c
+int zm2_tracks_clear(struct Zm2Tracks* tracks, uint32_t track)
+```
+* 説明: 指定したトラック番号のビットを`1`にします。
+  * この関数は`struct Zm2Tracks`を操作するためのユーティリティ関数です。
+* 引数:
+  * `tracks`: `struct Zm2Tracks`へのポインタ
+  * `track`: トラック番号 (1-80)
+* 戻り値: 成功時は0、失敗時は-1
+
+### `zm2_tracks_isset()`
+```c
+int zm2_tracks_isset(struct Zm2Tracks* tracks, uint32_t track, int* isset)
+```
+* 説明: 指定されたトラック番号のビットが`1`かどうかを調べます。
+  * この関数は`struct Zm2Tracks`を操作するためのユーティリティ関数です。
+* 引数:
+  * `tracks`: `struct Zm2Tracks`へのポインタ
+  * `track`: トラック番号 (1-80)
+  * `isset`: 結果を格納するポインタ (0または1)
+* 戻り値: 成功時は0、失敗時は-1
 
 --------

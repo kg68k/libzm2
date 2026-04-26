@@ -49,6 +49,7 @@ int _dos_mfree(void* memptr);
 #include "libzm2.h"
 #include "libzm2const.h"
 #include "libzm2midi.h"
+#include "libzm2util.h"
 
 #if defined(__GNUC__) && __GNUC__ < 3
 #define NO_LIBZM2WORK

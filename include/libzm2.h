@@ -80,53 +80,6 @@ struct Zm2OccupiedSize {
   uint32_t work_usage;
 } zm2__packed;
 
-static inline int  //
-zm2_tracks_set(struct Zm2Tracks* tracks, uint32_t track) {
-  uint32_t mask;
-  uint32_t tr = track - 1;  // 1..80 -> 0..79
-  if (tr >= 80) return -1;
-
-  zm2__asm(
-      "moveq.l #0,%0\n\t"
-      "bchg %1,%0"  //
-      : "=&d"(mask) : "d"(tr));
-
-  tracks->d[tr / 32] |= mask;
-  return 0;
-}
-
-static inline int  //
-zm2_tracks_clear(struct Zm2Tracks* tracks, uint32_t track) {
-  uint32_t clear_mask;
-  uint32_t tr = track - 1;  // 1..80 -> 0..79
-  if (tr >= 80) return -1;
-
-  zm2__asm(
-      "moveq.l #-1,%0\n\t"
-      "bchg %1,%0"  //
-      : "=&d"(clear_mask) : "d"(tr));
-
-  tracks->d[tr / 32] &= clear_mask;
-  return 0;
-}
-
-static inline int  //
-zm2_tracks_isset(struct Zm2Tracks* tracks, uint32_t track, int* isset) {
-  uint32_t mask;
-  uint32_t tr = track - 1;  // 1..80 -> 0..79
-
-  *isset = 0;
-  if (tr >= 80) return -1;
-
-  zm2__asm(
-      "moveq.l #0,%0\n\t"
-      "bchg %1,%0"  //
-      : "=&d"(mask) : "d"(tr));
-
-  if (tracks->d[tr / 32] &= mask) *isset = 1;
-  return 0;
-}
-
 static inline int32_t  //
 zm2_get_version_super(void) {
   const char* vec = zm2__get_trap3_entry();

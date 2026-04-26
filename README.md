@@ -39,6 +39,7 @@ Z-MUSIC v2のファンクションコールを呼び出すためのC言語用ラ
 * libzm2const.h …… 各種の定数を定義したファイルです。
 * libzm2error.h …… エラー番号を定義したファイルです。
 * libzm2midi.h …… MIDI関連のファンクションコールを定義したファイルです。
+* libzm2util.h …… ユーティリティ関数を定義したファイルです。
 * libzm2work.h …… Z-MUSICのワークの構造を定義したファイルです。
 
 [関数リファレンスマニュアル](FUNCTIONS.md)
