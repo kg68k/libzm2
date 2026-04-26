@@ -80,7 +80,7 @@ src2build src
 make -C build
 ```
 
-標準ではgcc2でコンパイルします。makeの引数に`CC=gcc`を指定すればgccを使用します。
+標準ではgccでコンパイルします。makeの引数に`CC=gcc2`を指定すればgcc2を使用します。
 
 src2buildを使わない場合は、src/内のファイルを適当なツールでShift_JISに変換して
 別のディレクトリに保存し、そのディレクトリ内で`make`を実行して下さい。
