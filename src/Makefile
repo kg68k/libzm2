@@ -8,7 +8,7 @@ endif
 SRC_DIR = .
 INC_DIR = $(shell cat ../srcdir.txt)/../include
 
-CC ?= gcc2
+CC = gcc2
 ifeq ($(CC),gcc2)
 CWARNFLAGS = -Wall -W -Werror
 else
