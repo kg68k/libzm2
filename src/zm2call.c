@@ -1516,6 +1516,28 @@ int PrintZmusicStatus(UNUSED char** args) {
   return EXIT_SUCCESS;
 }
 
+int Sc55Init(char** args) {
+  int8_t devid = -1;
+
+  if (*args && **args) {
+    if (StrToInt8(*args++, &devid, nullptr) < 0) return EXIT_FAILURE;
+  }
+
+  PrintResult(zm2_sc55_init(devid));
+  return EXIT_SUCCESS;
+}
+
+int Mt32Init(char** args) {
+  int8_t devid = -1;
+
+  if (*args && **args) {
+    if (StrToInt8(*args++, &devid, nullptr) < 0) return EXIT_FAILURE;
+  }
+
+  PrintResult(zm2_mt32_init(devid));
+  return EXIT_SUCCESS;
+}
+
 int RelativeUv(char** args) {
   uint32_t mode;
 
@@ -1779,8 +1801,8 @@ static const Command commands[] = {
     {"get_1st_comment", Get1stComment, nullptr},
     {"int_start", IntStart, nullptr},
     {"zm_status", ZmStatus, nullptr},
-    // {"sc55_init", Sc55Init, "<devid>"},
-    // {"mt32_init", Mt32Init, "<devid>"},
+    {"sc55_init", Sc55Init, "[devid]"},
+    {"mt32_init", Mt32Init, "[devid]"},
     {"relative_uv", RelativeUv, "<mode>"},
     {"intercept_play", InterceptPlay, "<mode>"},
     {"m_inp1", MInp1, "[wait]"},
@@ -1795,7 +1817,7 @@ static void PrintCommandList(void) {
   size_t i;
 
   printf("Commands:\n ");
-  for (i = 0; i < sizeof(commands) / sizeof(commands[0]); i++) {
+  for (i = 0; i < ARRAY_SIZE(commands); i++) {
     const char* s = GetCommandName(&commands[i]);
     size_t len = strlen(s);
 
@@ -1824,25 +1846,25 @@ static int ValidateStSize(size_t actual, size_t expected, const char* name) {
   fprintf(stderr, "内部エラー: struct %sの大きさが正しくありません。\n", name);
   return 1;
 }
-#endif
 
 static int ValidateStructSize(void) {
   int err = 0;
-#ifndef NO_LIBZM2WORK
   err += ValidateStSize(sizeof(struct Zm2CnvWk), ZM2_CNV_WK_SIZE, "Zm2CnvWk");
   err += ValidateStSize(sizeof(struct Zm2SeqWk), ZM2_SEQ_WK_SIZE, "Zm2SeqWk");
   err += ValidateStSize(sizeof(struct Zm2BufferInfo), ZM2_BUF_INFO_SIZE,
                         "Zm2BufferInfo");
   err += ValidateStSize(sizeof(struct Zm2Status), ZM2_STATUS_SIZE, "Zm2Status");
-#endif
   return err;
 }
+#endif
 
 int main(int argc, char* argv[]) {
   const Command* cmd;
   const char* comamnd_name = (argc >= 2) ? argv[1] : nullptr;
 
+#ifndef NO_LIBZM2WORK
   if (ValidateStructSize() != 0) return EXIT_FAILURE;
+#endif
 
   if (!comamnd_name) return PrintUsage();
 

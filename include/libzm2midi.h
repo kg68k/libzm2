@@ -220,12 +220,12 @@ zm2_eox_wait(uint16_t wait) {
 }
 
 static inline int32_t  //
-zm2_sc55_init(uint8_t devid) {
+zm2_sc55_init(int8_t devid) {
   return zm2__func_d3(0x51, devid);
 }
 
 static inline int32_t  //
-zm2_mt32_init(uint8_t devid) {
+zm2_mt32_init(int8_t devid) {
   return zm2__func_d3(0x52, devid);
 }
 
