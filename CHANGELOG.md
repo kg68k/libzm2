@@ -1,5 +1,11 @@
 # 変更履歴
 
+## Unreleased
+
+### libzm2util.h
+* `zm2_is_zmd_data()`、`zm2_is_zpd_data()`、`zm2_get_zmd_common_size()`を追加。
+
+
 ## 0.2.0 (preview)
 
 ### FUNCTIONS.md

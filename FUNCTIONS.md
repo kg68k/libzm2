@@ -240,7 +240,7 @@ int32_t zm2_play_cnv_data(uint32_t size, const uint8_t* zmd)
   * 内部バッファに転送せず即演奏(高速応答)する場合は`zm2_play_cnv_data_fast()`を使います。
 * 引数:
   * `size`: データサイズ
-  * `zmd`: ZMDデータへのポインタ(ファイルヘッダを飛ばしたアドレス)
+  * `zmd`: ZMDデータへのポインタ(ファイルヘッダを飛ばしたアドレス、奇数アドレス)
 * 戻り値: Z-MUSICエラーコード
 
 ### `zm2_play_cnv_data_fast()`
@@ -259,7 +259,7 @@ void zm2_se_play(uint32_t track, const uint8_t* zmd)
 * 説明: se_play
 * 引数:
   * `track`: トラック番号
-  * `zmd`: ZMDデータへのポインタ(ファイルヘッダと共通コマンドを飛ばしたアドレス)
+  * `zmd`: ZMDデータへのポインタ(ファイルヘッダと共通コマンドを飛ばしたアドレス、偶数アドレス)
 
 ### `zm2_se_adpcm1()`
 ```c
@@ -471,7 +471,7 @@ int32_t zm2_set_zpd_tbl(const void* zpd)
 ```
 * 説明: set_zpd_tbl
 * 引数:
-  * `zpd`: ZPDデータへのポインタ(ファイルヘッダを飛ばしたアドレス)
+  * `zpd`: ZPDデータへのポインタ(ファイルヘッダを飛ばしたアドレス、偶数アドレス)
 * 戻り値: Z-MUSICエラーコード
 
 ### `zm2_set_output_level()`
@@ -1047,5 +1047,33 @@ int zm2_tracks_isset(struct Zm2Tracks* tracks, uint32_t track, int* isset)
   * `track`: トラック番号 (1-80)
   * `isset`: 結果を格納するポインタ (0または1)
 * 戻り値: 成功時は0、失敗時は-1
+
+### `zm2_is_zmd_data()`
+```c
+int zm2_is_zmd_data(const uint8_t* buf, size_t filesize)
+```
+* 説明: 指定されたバッファ上のデータがZMD形式かどうかを調べます。
+* 引数:
+  * `buf`: バッファへのポインタ(偶数アドレス)
+  * `filesize`: データサイズ
+
+### `zm2_is_zpd_data()`
+```c
+int zm2_is_zpd_data(const uint8_t* buf, size_t filesize)
+```
+* 説明: 指定されたバッファ上のデータがZPD形式かどうかを調べます。
+* 引数:
+  * `buf`: バッファへのポインタ(偶数アドレス)
+  * `filesize`: データサイズ
+
+### `zm2_get_zmd_common_size()`
+```c
+int32_t zm2_get_zmd_common_size(const uint8_t* buf, size_t filesize)
+```
+* 説明: 指定されたバッファ上のZMDデータの、ヘッダと共通コマンド群のバイト数を調べます。
+* 引数:
+  * `buf`: バッファへのポインタ(偶数アドレス)
+  * `filesize`: データサイズ
+* 戻り値: 正数ならバイト数、正しいZMDデータでない場合は-1
 
 --------

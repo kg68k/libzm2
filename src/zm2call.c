@@ -261,7 +261,7 @@ static const char* GetSpecTypeString(int type) {
   if (type == ZM2_DRIVER_TYPE_16BIT) return "16bit";
   if (type == ZM2_DRIVER_TYPE_RS_MIDI) return "RS-MIDI";
   if (type == ZM2_DRIVER_TYPE_POLYPHON) return "POLYPHON";
-  return "???";
+  return "(unknown)";
 }
 
 int PrintZmusicSpec(UNUSED char** args) {
@@ -699,18 +699,12 @@ static uint8_t* ReadFileToHumanMemory(const char* filename, size_t* filesize) {
   return ReadFile(filename, filesize, MallocHumanMemory);
 }
 
-static int is_zmd_file(const uint8_t* buf, size_t filesize) {
-  if (filesize < ZM2_ZMD_MIN_SIZE) return 0;
-  if (memcmp(buf, ZM2_ZMD_ID, ZM2_ZMD_ID_LEN) != 0) return 0;
-  return 1;
-}
-
 static int PlayConvDataFast(char** args) {
   size_t filesize;
   uint8_t* buf = ReadFileToHumanMemory(*args++, &filesize);
   if (!buf) return EXIT_FAILURE;
 
-  if (!is_zmd_file(buf, filesize)) {
+  if (!zm2_is_zmd_data(buf, filesize)) {
     fprintf(stderr, "ZMDファイルではありません。\n");
     FreeHumanMemory(buf);
     return EXIT_FAILURE;
@@ -732,7 +726,7 @@ static int PlayConvDataNormal(char** args) {
   uint8_t* buf = ReadFileToHeap(*args++, &filesize);
   if (!buf) return EXIT_FAILURE;
 
-  if (!is_zmd_file(buf, filesize)) {
+  if (!zm2_is_zmd_data(buf, filesize)) {
     fprintf(stderr, "ZMDファイルではありません。\n");
     free(buf);
     return EXIT_FAILURE;
@@ -760,87 +754,11 @@ int PlayCnvData(char** args) {
   return PlayConvDataNormal(args);
 }
 
-static int GetZmdWord(uint8_t* p, const uint8_t* tail) {
-  if (tail < (p + 2)) return -1;
-  return (p[0] << 8) + p[1];
-}
-
-static uint8_t* SkipZmdString(uint8_t* p, const uint8_t* tail) {
-  while (p < tail) {
-    if (*p++ == '\0') return p;
-  }
-  return nullptr;
-}
-
-static uint8_t* SkipZmdCommonCommadInner(uint8_t* p, const uint8_t* tail) {
-  int n;
-  switch (*p++) {
-    default:
-      break;
-    case 0x04:  // (Vn,...)
-    case 0x1b:  //
-      return p + 1 + 55;
-    case 0x05:  // (On)
-      return p + 2;
-    case 0x15:  // (Bn) (v1.09Dまでは出力されていたコマンド)
-      return p + 1;
-    case 0x18:  // (X...) / .MIDI_DATA {...}
-      n = GetZmdWord(p, tail);
-      if (n < 0) break;
-      return p + 2 + n;
-    case 0x40:  // n=... / Onk=...
-      p += 19;  // ファイル名またはノート番号まで進める
-      n = GetZmdWord(p, tail);
-      if (n < 0) break;
-
-      if ((n >> 8) == 0) {  // ノート番号による指定
-        if (n != 0) break;
-        return p + 2 + 2;
-      }
-      // ファイル名による指定
-      return SkipZmdString(p, tail);
-    case 0x42:  // (Zn)
-      return p + 1 + 4;
-    case 0x4a:  // .WAVE_FORM ... {...}
-      n = GetZmdWord(p, tail);
-      if (n < 0) break;
-      return p + 2 + 1 + 1 + 2 + n * 2;
-    case 0x60:  // .ADPCM_LIST ...
-    case 0x61:  // .PRINT ...
-    case 0x62:  // .MIDI_DUMP=...
-    case 0x63:  // .ADPCM_BLOCK_DATA ...
-    case 0x7f:  // .COMMENT ...
-      return SkipZmdString(p, tail);
-    case 0x7e:  // ダミーコード
-      return p;
-  }
-  return nullptr;
-}
-
-static uint8_t* SkipZmdCommonCommand(uint8_t* p, size_t filesize) {
-  const uint8_t* tail = p + filesize;
-
-  if (!is_zmd_file(p, filesize)) return nullptr;
-  p += ZM2_ZMD_ID_LEN + ZM2_ZMD_VER_LEN;
-
-  while (p && p < tail) {
-    if (*p == 0xff) {  // 共通コマンド終了コード
-      p += 1;
-      if (((uintptr_t)p & 1) != 0) {
-        if (tail <= p || *p++ != 0xff) break;
-      }
-      return p;
-    }
-    p = SkipZmdCommonCommadInner(p, tail);
-  }
-  return nullptr;
-}
-
 int SePlay(char** args) {
   uint32_t track;
   size_t filesize;
   uint8_t* buf;
-  const uint8_t* a1pos;
+  int32_t common_size;
 
   if (StrToUint32(*args++, &track, nullptr) < 0) return -1;
 
@@ -852,14 +770,14 @@ int SePlay(char** args) {
   // * ヘッダと共通コマンドを削除したデータをファイルとして保存しておく
   // * 共通コマンドを含まないデータ(スキップ長が10バイト固定)として作成する
   // * スキップするバイト数を調べて保存しておく
-  a1pos = SkipZmdCommonCommand(buf, filesize);
-  if (!a1pos) {
+  common_size = zm2_get_zmd_common_size(buf, filesize);
+  if (common_size < 0) {
     fprintf(stderr, "ZMDファイルではありません。\n");
     FreeHumanMemory(buf);
     return EXIT_FAILURE;
   }
 
-  zm2_se_play(track, a1pos);
+  zm2_se_play(track, buf + common_size);
   // バッファ上のデータを再生しているので解放しない
 
   return EXIT_SUCCESS;
@@ -930,17 +848,19 @@ int MidiRec(UNUSED char** args) {
 
 int MidiRecEnd(char** args) {
   uint32_t mode = 0;
-  struct Zm2MidiRecResult r;
 
   if (*args && **args) {
     if (StrToUint32(*args++, &mode, nullptr) < 0) return EXIT_FAILURE;
   }
 
-  r = zm2_midi_rec_end(mode);
-  // r.data == nullptrならr.sizeがエラーコード
-  printf("データサイズ: %u, データアドレス: 0x%08x\n", (unsigned int)r.size,
-         (unsigned int)r.data);
+  {
+    struct Zm2MidiRecResult r = zm2_midi_rec_end(mode);
+    // r.data == nullptrならr.sizeがエラーコード
 
+    unsigned int size = (unsigned int)r.size;
+    unsigned int data = (unsigned int)r.data;
+    printf("データサイズ: %u, データアドレス: 0x%08x\n", size, data);
+  }
   // ファイルへの保存機能があると実用的だが、実装していない
 
   return EXIT_SUCCESS;
@@ -1292,6 +1212,12 @@ int SetZpdTbl(char** args) {
   size_t filesize;
   uint8_t* buf = ReadFileToHumanMemory(*args++, &filesize);
   if (!buf) return EXIT_FAILURE;
+
+  if (!zm2_is_zpd_data(buf, filesize)) {
+    fprintf(stderr, "ZPDファイルではありません。\n");
+    FreeHumanMemory(buf);
+    return EXIT_FAILURE;
+  }
 
   {
     const uint8_t* a1pos = buf + ZM2_ZPD_ID_LEN;
