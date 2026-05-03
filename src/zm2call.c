@@ -661,6 +661,21 @@ static uint8_t* ReadFileToHeap(const char* filename, size_t* filesize) {
   return ReadFile(filename, filesize, malloc);
 }
 
+static int ReadFileExactSize(const char* filename, size_t size, void* outbuf) {
+  size_t filesize;
+  uint8_t* readbuf = ReadFileToHeap(filename, &filesize);
+
+  if (filesize != size) {
+    fprintf(stderr, "ファイルサイズが異なります。\n");
+    free(readbuf);
+    return -1;
+  }
+
+  memcpy(outbuf, readbuf, size);
+  free(readbuf);
+  return 0;
+}
+
 static struct _mep* GetHumanMep(void) {
   int ssp = _dos_super(0);
   struct _mep* mep = (struct _mep*)((char*)_dos_getpdb() - sizeof(struct _mep));
@@ -792,7 +807,7 @@ int SeAdpcm1(char** args) {
   uint8_t* buf = ReadFileToHumanMemory(*args++, &filesize);
   if (!buf) return EXIT_FAILURE;
 
-  if (*args && **args) {
+  if (*args) {
     const char* endptr;
     if (StrToUint8(*args++, &priority, &endptr) < 0) return -1;
     if (*endptr) {
@@ -817,7 +832,7 @@ int SeAdpcm2(char** args) {
 
   if (StrToUint32(*args++, &note, nullptr) < 0) return EXIT_FAILURE;
 
-  if (*args && **args) {
+  if (*args) {
     const char* endptr;
     if (StrToUint8(*args++, &priority, &endptr) < 0) return -1;
     if (*endptr) {
@@ -849,7 +864,7 @@ int MidiRec(UNUSED char** args) {
 int MidiRecEnd(char** args) {
   uint32_t mode = 0;
 
-  if (*args && **args) {
+  if (*args) {
     if (StrToUint32(*args++, &mode, nullptr) < 0) return EXIT_FAILURE;
   }
 
@@ -886,7 +901,7 @@ int MidiTrns(char** args) {
 int CalcTotal(char** args) {
   uint32_t mode = 0;
 
-  if (*args && **args) {
+  if (*args) {
     if (StrToUint32(*args++, &mode, nullptr) < 0) return EXIT_FAILURE;
   }
 
@@ -897,7 +912,7 @@ int CalcTotal(char** args) {
 int FadeOut(char** args) {
   int32_t speed = 0;
 
-  if (*args && **args) {
+  if (*args) {
     if (StrToInt32(*args++, &speed, nullptr) < 0) return EXIT_FAILURE;
   }
 
@@ -925,30 +940,302 @@ int MVset2(char** args) {
 }
 
 int SendRdExc(char** args) {
-  uint16_t devid;
-  uint16_t modelid;
+  int8_t devid;
+  uint8_t modelid;
   size_t filesize;
   uint8_t* buf;
 
-  if (StrToUint16(*args++, &devid, nullptr) < 0) return EXIT_FAILURE;
-  if (StrToUint16(*args++, &modelid, nullptr) < 0) return EXIT_FAILURE;
+  // send_rd_excには他のファンクションコールと違い「-1で前回のデバイスIDを使う」
+  // という機能がないので、入力を必須にする
+  if (StrToInt8(*args++, &devid, nullptr) < 0) return EXIT_FAILURE;
+
+  if (StrToUint8(*args++, &modelid, nullptr) < 0) return EXIT_FAILURE;
   buf = ReadFileToHeap(*args++, &filesize);
   if (!buf) return EXIT_FAILURE;
 
-  zm2_send_rd_exc(filesize, devid, modelid, buf);
+  // filesize==0だとZ-MUSIC内でバッファをアスキー文字列データと見なして
+  // 転送したのち2^32バイトのチェックサムを計算しようとするため、
+  // バスエラーが発生する。ここではサイズの確認をしていない。
+
+  PrintResult(zm2_send_rd_exc(filesize, devid, modelid, buf));
   free(buf);
   return EXIT_SUCCESS;
 }
 
 int SendExc(char** args) {
   size_t filesize;
-  uint8_t* buf;
+  uint8_t* buf = ReadFileToHeap(*args++, &filesize);
+  if (!buf) return EXIT_FAILURE;
 
+  PrintResult(zm2_send_exc(filesize, buf));
+  free(buf);
+  return EXIT_SUCCESS;
+}
+
+typedef int32_t (*CallbackD)(int8_t devid);
+typedef int32_t (*CallbackFD)(uint32_t size, int8_t devid, const uint8_t* data);
+typedef int32_t (*CallbackSD)(uint32_t size, int8_t devid, const char* data);
+typedef int32_t (*CallbackBFD)(uint32_t size, uint8_t byte, int8_t devid,
+                               const uint8_t* data);
+typedef int32_t (*CallbackB2FD)(uint32_t size, uint8_t byte1, uint8_t byte2,
+                                int8_t devid, const uint8_t* data);
+
+static int MidiDevid(char** args, CallbackD callback) {
+  int8_t devid = ZM2_USE_PREVIOUS_DEVID;
+
+  if (*args) {
+    if (StrToInt8(*args++, &devid, nullptr) < 0) return EXIT_FAILURE;
+  }
+
+  // libzm2midi.hで定義されている関数を呼び出して結果を表示
+  PrintResult(callback(devid));
+
+  return EXIT_SUCCESS;
+}
+
+static int MidiFileDevid(char** args, CallbackFD callback) {
+  size_t filesize;
+  int8_t devid = ZM2_USE_PREVIOUS_DEVID;
+
+  uint8_t* buf = ReadFileToHeap(*args++, &filesize);
+  if (!buf) return EXIT_FAILURE;
+
+  if (*args) {
+    if (StrToInt8(*args++, &devid, nullptr) < 0) {
+      free(buf);
+      return EXIT_FAILURE;
+    }
+  }
+
+  // libzm2midi.hで定義されている関数を呼び出して結果を表示
+  PrintResult(callback(filesize, devid, buf));
+
+  free(buf);
+  return EXIT_SUCCESS;
+}
+
+static int MidiStringDevid(char** args, CallbackSD callback) {
+  const char* buf = *args++;
+  int8_t devid = ZM2_USE_PREVIOUS_DEVID;
+
+  if (!buf) {
+    fprintf(stderr, "文字列が指定されていません。\n");
+    return EXIT_FAILURE;
+  }
+  if (*args) {
+    if (StrToInt8(*args++, &devid, nullptr) < 0) return EXIT_FAILURE;
+  }
+
+  // libzm2midi.hで定義されている関数を呼び出して結果を表示
+  PrintResult(callback(strlen(buf), devid, buf));
+
+  return EXIT_SUCCESS;
+}
+
+static int MidiByteFileDevid(char** args, CallbackBFD callback) {
+  uint8_t byte;
+  size_t filesize;
+  uint8_t* buf;
+  int8_t devid = ZM2_USE_PREVIOUS_DEVID;
+
+  if (StrToUint8(*args++, &byte, nullptr) < 0) return EXIT_FAILURE;
   buf = ReadFileToHeap(*args++, &filesize);
   if (!buf) return EXIT_FAILURE;
 
-  zm2_send_exc(filesize, buf);
+  if (*args) {
+    if (StrToInt8(*args++, &devid, nullptr) < 0) {
+      free(buf);
+      return EXIT_FAILURE;
+    }
+  }
+
+  // libzm2midi.hで定義されている関数を呼び出して結果を表示
+  PrintResult(callback(filesize, byte, devid, buf));
+
   free(buf);
+  return EXIT_SUCCESS;
+}
+
+static int MidiByte2FileDevid(char** args, CallbackB2FD callback) {
+  uint8_t byte1, byte2;
+  size_t filesize;
+  uint8_t* buf;
+  int8_t devid = ZM2_USE_PREVIOUS_DEVID;
+
+  if (StrToUint8(*args++, &byte1, nullptr) < 0) return EXIT_FAILURE;
+  if (StrToUint8(*args++, &byte2, nullptr) < 0) return EXIT_FAILURE;
+  buf = ReadFileToHeap(*args++, &filesize);
+  if (!buf) return EXIT_FAILURE;
+
+  if (*args) {
+    if (StrToInt8(*args++, &devid, nullptr) < 0) {
+      free(buf);
+      return EXIT_FAILURE;
+    }
+  }
+
+  // libzm2midi.hで定義されている関数を呼び出して結果を表示
+  PrintResult(callback(filesize, byte1, byte2, devid, buf));
+
+  free(buf);
+  return EXIT_SUCCESS;
+}
+
+int Sc55PRsv(char** args) {  //
+  return MidiFileDevid(args, zm2_sc55_p_rsv);
+}
+
+int Sc55Reverb(char** args) {  //
+  return MidiFileDevid(args, zm2_sc55_reverb);
+}
+
+int Sc55Chorus(char** args) {  //
+  return MidiFileDevid(args, zm2_sc55_chorus);
+}
+
+int Sc55PartSetup(char** args) {
+  return MidiByteFileDevid(args, zm2_sc55_part_setup);
+}
+
+int Sc55DrumSetup(char** args) {
+  return MidiByte2FileDevid(args, zm2_sc55_drum_setup);
+}
+
+int Sc55Print(char** args) {  //
+  return MidiStringDevid(args, zm2_sc55_print);
+}
+
+int Sc55Display(char** args) {
+  Zm2Sc55Display buf;
+  int8_t devid = ZM2_USE_PREVIOUS_DEVID;
+
+  if (ReadFileExactSize(*args++, sizeof(buf), &buf) < 0) return EXIT_FAILURE;
+  if (*args) {
+    if (StrToInt8(*args++, &devid, nullptr) < 0) return EXIT_FAILURE;
+  }
+
+#if defined(__GNUC__) && (__GNUC__ < 2)
+  // gcc 1.xだと警告がでるので明示的にキャストしている
+  PrintResult(zm2_sc55_display(devid, (const Zm2Sc55Display*)&buf));
+#else
+  PrintResult(zm2_sc55_display(devid, &buf));
+#endif
+  return EXIT_SUCCESS;
+}
+
+int Mt32PRsv(char** args) {  //
+  return MidiFileDevid(args, zm2_mt32_p_rsv);
+}
+
+int Mt32Reverb(char** args) {  //
+  return MidiFileDevid(args, zm2_mt32_reverb);
+}
+
+int Mt32Setup(char** args) {  //
+  return MidiFileDevid(args, zm2_mt32_setup);
+}
+
+int Mt32Drum(char** args) {  //
+  return MidiByteFileDevid(args, zm2_mt32_drum);
+}
+
+int Mt32Common(char** args) {  //
+  return MidiByteFileDevid(args, zm2_mt32_common);
+}
+
+int Mt32Partial(char** args) {
+  return MidiByte2FileDevid(args, zm2_mt32_partial);
+}
+
+int Mt32Patch(char** args) {  //
+  return MidiByteFileDevid(args, zm2_mt32_patch);
+}
+
+int Mt32Print(char** args) {  //
+  return MidiStringDevid(args, zm2_mt32_print);
+}
+
+int U220Setup(char** args) {  //
+  return MidiFileDevid(args, zm2_u220_setup);
+}
+
+int U220Common(char** args) {  //
+  return MidiFileDevid(args, zm2_u220_common);
+}
+
+int U220DSetup(char** args) {  //
+  return MidiFileDevid(args, zm2_u220_d_setup);
+}
+
+int U220PSetup(char** args) {
+  return MidiByteFileDevid(args, zm2_u220_p_setup);
+}
+
+int U220Print(char** args) {  //
+  return MidiStringDevid(args, zm2_u220_print);
+}
+
+int U220Timbre(char** args) {  //
+  return MidiByteFileDevid(args, zm2_u220_timbre);
+}
+
+int U220Drum(char** args) {  //
+  return MidiByteFileDevid(args, zm2_u220_drum);
+}
+
+int M1MidiCh(char** args) {
+  Zm2M1MidiCh buf;
+  if (ReadFileExactSize(*args++, sizeof(buf), &buf) < 0) return EXIT_FAILURE;
+
+#if defined(__GNUC__) && (__GNUC__ < 2)
+  // gcc 1.xだと警告がでるので明示的にキャストしている
+  PrintResult(zm2_m1_midi_ch((const Zm2M1MidiCh*)&buf));
+#else
+  PrintResult(zm2_m1_midi_ch(&buf));
+#endif
+  return EXIT_SUCCESS;
+}
+
+int SendToM1(char** args) {  //
+  return MidiDevid(args, zm2_send_to_m1);
+}
+
+int M1PSetup(char** args) {
+  Zm2M1TrackParam buf;
+  if (ReadFileExactSize(*args++, sizeof(buf), &buf) < 0) return EXIT_FAILURE;
+
+#if defined(__GNUC__) && (__GNUC__ < 2)
+  // gcc 1.xだと警告がでるので明示的にキャストしている
+  PrintResult(zm2_m1_p_setup((const Zm2M1TrackParam*)&buf));
+#else
+  PrintResult(zm2_m1_p_setup(&buf));
+#endif
+  return EXIT_SUCCESS;
+}
+
+int M1ESetup(char** args) {
+  Zm2M1EffectParam buf;
+  if (ReadFileExactSize(*args++, sizeof(buf), &buf) < 0) return EXIT_FAILURE;
+
+#if defined(__GNUC__) && (__GNUC__ < 2)
+  // gcc 1.xだと警告がでるので明示的にキャストしている
+  PrintResult(zm2_m1_e_setup((const Zm2M1EffectParam*)&buf));
+#else
+  PrintResult(zm2_m1_e_setup(&buf));
+#endif
+  return EXIT_SUCCESS;
+}
+
+int M1Print(char** args) {
+  const char* buf = *args++;
+  if (!buf) {
+    fprintf(stderr, "文字列が指定されていません。\n");
+    return EXIT_FAILURE;
+  }
+
+  // 1<=文字列長<=10 でなければならないが、ここでは確認をしていない。
+
+  PrintResult(zm2_m1_print(strlen(buf), buf));
   return EXIT_SUCCESS;
 }
 
@@ -1246,6 +1533,15 @@ int SetOutputLevel(char** args) {
   return EXIT_SUCCESS;
 }
 
+int EoxWait(char** args) {
+  uint16_t wait;
+
+  if (StrToUint16(*args++, &wait, nullptr) < 0) return EXIT_FAILURE;
+
+  PrintResult(zm2_eox_wait(wait));
+  return EXIT_SUCCESS;
+}
+
 struct WaveParam {
   uint8_t no;
   uint8_t type;
@@ -1442,26 +1738,12 @@ int PrintZmusicStatus(UNUSED char** args) {
   return EXIT_SUCCESS;
 }
 
-int Sc55Init(char** args) {
-  int8_t devid = -1;
-
-  if (*args && **args) {
-    if (StrToInt8(*args++, &devid, nullptr) < 0) return EXIT_FAILURE;
-  }
-
-  PrintResult(zm2_sc55_init(devid));
-  return EXIT_SUCCESS;
+int Sc55Init(char** args) {  //
+  return MidiDevid(args, zm2_sc55_init);
 }
 
-int Mt32Init(char** args) {
-  int8_t devid = -1;
-
-  if (*args && **args) {
-    if (StrToInt8(*args++, &devid, nullptr) < 0) return EXIT_FAILURE;
-  }
-
-  PrintResult(zm2_mt32_init(devid));
-  return EXIT_SUCCESS;
+int Mt32Init(char** args) {  //
+  return MidiDevid(args, zm2_mt32_init);
 }
 
 int RelativeUv(char** args) {
@@ -1659,68 +1941,66 @@ static const Command commands[] = {
     {"int_stop", IntStop, nullptr},
     {"m_play2", MPlay2, nullptr},
     {"adpcm_read", AdpcmRead,
-     "<filename|note> <note> [pitch,vol] [delay,note] [offset,size] [reverse] "
+     "<file|note> <note> [pitch,vol] [delay,note] [offset,size] [reverse] "
      "[offset,mode,level]"},
-    {"play_cnv_data", PlayCnvData, "[-f] <filename>"},
-    {"se_play", SePlay, "<track> <filename>"},
-    {"se_adpcm1", SeAdpcm1, "<filename> [priority,freq,pan]"},
+    {"play_cnv_data", PlayCnvData, "[-f] <file>"},
+    {"se_play", SePlay, "<track> <file>"},
+    {"se_adpcm1", SeAdpcm1, "<file> [priority,freq,pan]"},
     {"se_adpcm2", SeAdpcm2, "<note> [priority,freq,pan]"},
     {"set_ch_mode", SetChMode, "<mode>"},
     {"midi_rec", MidiRec, nullptr},
     {"midi_rec_end", MidiRecEnd, "<mode>"},
-    {"midi_trns", MidiTrns, "[-b] <filename>"},
+    {"midi_trns", MidiTrns, "[-b] <file>"},
     {"calc_total", CalcTotal, "[mode]"},
     {"fade_out", FadeOut, "[speed]"},
     {"m_vset2", MVset2, "<tone> <file>"},
-    {"send_rd_exc", SendRdExc, "<devid> <modelid> <filename>"},
-    {"send_exc", SendExc, "<filename>"},
-    // {"sc55_p_rsv", Sc55PRsv, "<devid> <filename>"},
-    // {"sc55_reverb", Sc55Reverb, "<devid> <filename>"},
-    // {"sc55_chorus", Sc55Chorus, "<devid> <filename>"},
-    // {"sc55_part_parameter", "Sc55PartParameter",
-    //  "<part> <devid> <filename>"},
-    // {"sc55_drum_parameter", "Sc55DrumParameter",
-    //  "<map> <note> <devid> <filename>"},
-    // {"sc55_print", Sc55Print, "<devid> <message>"},
-    // {"sc55_display", Sc55Display, "<devid> <filename>"},
-    // {"mt32_p_rsv", Mt32PRsv, "<devid> <filename>"},
-    // {"mt32_reverb", Mt32Reverb, "<devid> <filename>"},
-    // {"mt32_setup", Mt32Setup, "<devid> <filename>"},
-    // {"mt32_drum", Mt32Reverb, "<note> <devid> <filename>"},
-    // {"mt32_common", Mt32Common, "<prog> <devid> <filename>"},
-    // {"mt32_partial", Mt32Partial, "<prog> <part> <devid> <filename>"},
-    // {"mt32_patch", Mt32Patch, "<patch> <devid> <filename>"},
-    // {"mt32_print", Mt32Print, "<devid> <message>"},
-    // {"u220_setup", U220Setup, "<devid> <filename>"},
-    // {"u220_common", U220Common, "<devid> <filename>"},
-    // {"u220_d_setup", U220DSetup, "<devid> <filename>"},
-    // {"u220_p_setup", U220PSetup, "<part> <devid> <filename>"},
-    // {"u220_print", U220Print, "<devid> <message>"},
-    // {"u220_timbre", U220Timbre, "<prog> <devid> <filename>"},
-    // {"u220_drum", U220Drum, "<note> <devid> <filename>"},
-    // {"m1_midi_ch", M1MidiCh, "<filename>"},
-    // {"send_to_m1", SendToM1, "<devid>"},
-    // {"m1_p_setup", M1PSetup, "<filename>"},
-    // {"m1_e_setup", M1ESetup, "<filename>"},
-    // {"m1_print", M1Print, "<message>"},
-    {"adpcm_block_data", AdpcmBlockData, "<filename>"},
+    {"send_rd_exc", SendRdExc, "<devid> <modelid> <file>"},
+    {"send_exc", SendExc, "<file>"},
+    {"sc55_p_rsv", Sc55PRsv, "<file> [devid]"},
+    {"sc55_reverb", Sc55Reverb, "<file> [devid]"},
+    {"sc55_chorus", Sc55Chorus, "<file> [devid]"},
+    {"sc55_part_setup", Sc55PartSetup, "<part> <file> [devid]"},
+    {"sc55_drum_setup", Sc55DrumSetup, "<map> <note> <file> [devid]"},
+    {"sc55_print", Sc55Print, "<message> [devid]"},
+    {"sc55_display", Sc55Display, "<file> [devid]"},
+    {"mt32_p_rsv", Mt32PRsv, "<file> [devid]"},
+    {"mt32_reverb", Mt32Reverb, "<file> [devid]"},
+    {"mt32_setup", Mt32Setup, "<file> [devid]"},
+    {"mt32_drum", Mt32Drum, "<note> <file> [devid]"},
+    {"mt32_common", Mt32Common, "<prog> <file> [devid]"},
+    {"mt32_partial", Mt32Partial, "<prog> <part> <file> [devid]"},
+    {"mt32_patch", Mt32Patch, "<patch> <file> [devid]"},
+    {"mt32_print", Mt32Print, "<message> [devid]"},
+    {"u220_setup", U220Setup, "<file> [devid]"},
+    {"u220_common", U220Common, "<file> [devid]"},
+    {"u220_d_setup", U220DSetup, "<file> [devid]"},
+    {"u220_p_setup", U220PSetup, "<part> <file> [devid]"},
+    {"u220_print", U220Print, "<message> [devid]"},
+    {"u220_timbre", U220Timbre, "<prog> <file> [divid]"},
+    {"u220_drum", U220Drum, "<note> <file> [devid]"},
+    {"m1_midi_ch", M1MidiCh, "<file>"},
+    {"send_to_m1", SendToM1, "[devid]"},
+    {"m1_p_setup", M1PSetup, "<file>"},
+    {"m1_e_setup", M1ESetup, "<file>"},
+    {"m1_print", M1Print, "<message>"},
+    {"adpcm_block_data", AdpcmBlockData, "<file>"},
     {"get_trk_tbl", GetTrkTbl, nullptr},
     {"set_loop_time", SetLoopTime, "<count>"},
     {"get_play_work", GetPlayWork, "<track>"},
     {"get_timer_mode", GetTimerMode, nullptr},
     {"set_fm_master_vol", SetFmMasterVol, "<volume>"},
     {"set_timer_value", SetTimerValue, "<timer>"},
-    {"release_support", ReleaseSupport, "<filename|code>"},
+    {"release_support", ReleaseSupport, "<file|code>"},
     {"jump_active", JumpActive, "<mode>"},
     {"set_mclk", SetMclk, "<count>"},
     {"picture_sync", PictureSync, "<mode>"},
     {"mask_channels", MaskChannels, "<channel,…>"},
     {"buffer_info", BufferInfo, "[-v]"},
-    {"set_zpd_tbl", SetZpdTbl, "<filename>"},
+    {"set_zpd_tbl", SetZpdTbl, "<file>"},
     {"set_output_level", SetOutputLevel, "[channel,…] [level]"},
-    // {"eox_wait", EoxWait, "<wait>"},
-    {"set_wave_form1", SetWaveForm1, "<type,no,point> <filename>"},
-    {"set_wave_form2", SetWaveForm2, "<type,no,point> <filename>"},
+    {"eox_wait", EoxWait, "<wait>"},
+    {"set_wave_form1", SetWaveForm1, "<type,no,point> <file>"},
+    {"set_wave_form2", SetWaveForm2, "<type,no,point> <file>"},
     {"mask_tracks", MaskTracks, "<-track|0|track>"},
     {"set_output_level2", SetOutputLevel2, "[track] [level]"},
     {"get_loop_time", GetLoopTime, nullptr},

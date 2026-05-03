@@ -1,6 +1,6 @@
 # 変更履歴
 
-## Unreleased
+## 0.3.0 (preview)
 
 ### libzm2midi.h
 * 定数`ZM2_USE_PREVIOUS_DEVID`を追加。
@@ -16,6 +16,9 @@
 
 ### libzm2util.h
 * `zm2_is_zmd_data()`、`zm2_is_zpd_data()`、`zm2_get_zmd_common_size()`を追加。
+
+### zm2call
+* 未実装だったMIDI制御系のコマンドをすべて追加。
 
 
 ## 0.2.0 (preview)

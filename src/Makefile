@@ -27,7 +27,7 @@ endif
 
 CFLAGS = -funsigned-char -O2 $(CWARNFLAGS) -I$(INC_DIR) -ldos
 
-HEADERS = libzm2.h libzm2midi.h libzm2internal.h
+HEADERS = libzm2.h libzm2const.h libzm2midi.h libzm2util.h libzm2work.h libzm2internal.h
 HEADS = $(addprefix $(INC_DIR)/,$(HEADERS))
 SRCS = $(SRC_DIR)/zm2call.c
 OBJS = $(SRCS:.c=.o)
