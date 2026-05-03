@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### libzm2midi.h
+* 定数`ZM2_USE_PREVIOUS_DEVID`を追加。
+* 各関数の引数の`devid`の型を`int8_t devid`に変更(-1で前回の値を使用する仕様のため)。
+* `zm2_send_rd_exc()`: `devid`を正しく渡せない不具合を修正(Z-MUSICマニュアルの誤記による)。
+* `zm2_sc55_part_setup()`: 引数`part`の型を`uint8_t`に変更。
+* `zm2_mt32_drum()`: 引数`note`の型を`uint8_t`に変更。
+* `zm2_mt32_common()`: 引数`prog`の型を`uint8_t`に変更。
+* `zm2_mt32_patch()` : 引数`patch`の型を`uint8_t`に変更。
+* `zm2_u220_p_setup()`: 引数`part`の型を`uint8_t`に変更。
+* `zm2_u220_timbre()`: 引数`prog`の型を`uint8_t`に変更。
+* `zm2_u220_drum()`: 引数`note`の型を`uint8_t`に変更。
+
 ### libzm2util.h
 * `zm2_is_zmd_data()`、`zm2_is_zpd_data()`、`zm2_get_zmd_common_size()`を追加。
 
