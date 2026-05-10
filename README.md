@@ -26,7 +26,7 @@ Z-MUSIC v2のファンクションコールを呼び出すためのC言語用ラ
 > [!IMPORTANT]
 > C標準ライブラリにLIBCを使う場合、stdint.hの追加が必要です。  
 > 手元にない場合は、とりあえずの対処として
-> [ここのstdint.h](https://github.com/kg68k/x68.memo/blob/main/prog/libc/include/stdint.h)
+> [ここのstdint.h](https://github.com/kg68k/cheaders/blob/main/libc_include/stdint.h)
 > を使って下さい。
 
 > [!IMPORTANT]
