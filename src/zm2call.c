@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #define PROGRAM "zm2call"
-#define VERSION "0.2.0-dev"
+#define VERSION "1.0.0"
 
 #include <errno.h>
 #include <stdint.h>
