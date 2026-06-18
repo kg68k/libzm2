@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #define PROGRAM "zm2call"
-#define VERSION "1.0.0"
+#define VERSION "1.1.0-dev"
 
 #include <errno.h>
 #include <stdint.h>
@@ -769,30 +769,88 @@ int PlayCnvData(char** args) {
   return PlayConvDataNormal(args);
 }
 
+static int IsValidStrippedZmd(const uint8_t* buf, size_t filesize) {
+  // トラックデータのトラック終了命令 0xff
+  const uint32_t end_of_track = 1;
+  // トラックデータへのオフセット(.l), 0x00(.b), 絶対チャンネル番号(.b)
+  const uint32_t track_size_min = 4 + 1 + 1;
+
+  uint32_t index;
+  uint16_t tracks;
+  uint16_t i;
+
+  // 総トラック数
+  if (filesize < 2) return 0;
+  tracks = *(uint16_t*)buf;
+  index = 2;
+  if (tracks > ZM2_CHANNEL_COUNT) return 0;
+
+  // 各トラックのデータまでのオフセットと絶対チャンネル番号のテーブルが
+  // ファイル内に収まっているか
+  if ((index + tracks * track_size_min) > filesize) return 0;
+
+  for (i = 0; i < tracks; i += 1) {
+    // トラックデータがファイル内に収まっているか
+    uint32_t offset_to_data = *(uint32_t*)&buf[index];
+    index += 4;
+    if (offset_to_data > filesize) return 0;
+    if ((index + offset_to_data + end_of_track) > filesize) return 0;
+
+    if (buf[index] != 0x00) return 0;
+    index += 1;
+
+    // 絶対チャンネル番号
+    if (buf[index] > ZM2_CHANNEL_COUNT) return 0;
+    index += 1;
+  }
+
+  return 1;
+}
+
 int SePlay(char** args) {
   uint32_t track;
   size_t filesize;
   uint8_t* buf;
-  int32_t common_size;
+  int32_t skip_size = 0;
 
   if (StrToUint32(*args++, &track, nullptr) < 0) return -1;
 
   buf = ReadFileToHumanMemory(*args++, &filesize);
   if (!buf) return EXIT_FAILURE;
 
-  // ここでは普通の.zmdファイルをそのまま指定して試せるように共通コマンドの
-  // スキップを行っているが、実用上は以下のいずれかにした方がよい。
-  // * ヘッダと共通コマンドを削除したデータをファイルとして保存しておく
-  // * 共通コマンドを含まないデータ(スキップ長が10バイト固定)として作成する
-  // * スキップするバイト数を調べて保存しておく
-  common_size = zm2_get_zmd_common_size(buf, filesize);
-  if (common_size < 0) {
-    fprintf(stderr, "ZMDファイルではありません。\n");
-    FreeHumanMemory(buf);
-    return EXIT_FAILURE;
+  // ここではテストツールとしての利便性からヘッダのスキップやファイルの
+  // 検証を行っているが、ゲームなどで効果音を再生する場合は不要。
+  // あらかじめスキップ不要なデータをメモリに読み込んでおき、直接
+  // ファンクションコールを呼べば良い。
+
+  if (zm2_is_zmd_data(buf, filesize)) {
+    // 普通の.zmdファイルしかない場合にもそのまま試せるように、
+    // .zmdファイルが指定された場合はヘッダと共通コマンドのスキップを行う。
+    // ただし、実用上は以下のいずれかにした方がよい。
+    // * ヘッダと共通コマンドを削除したデータをファイルとして保存しておく
+    // * 共通コマンドを含まないデータ(スキップ長が10バイト固定)として作成する
+    // * スキップするバイト数を調べて保存しておく
+    skip_size = zm2_get_zmd_common_size(buf, filesize);
+    if (skip_size < 0) {
+      fprintf(stderr, "ZMDファイルではありません。\n");
+      FreeHumanMemory(buf);
+      return EXIT_FAILURE;
+    }
+  } else {
+    // .zmdファイルのヘッダがなければ、不要部分が削除された.zmdファイルと
+    // みなしてそのまま再生する。
+    // ただし不正なファイルを指定すると異常動作の原因となるので、
+    // 最低限のチェックはしておく。
+    // 例えばZ-MUSIC v2マニュアルのM14_L08.S、M14_L10.Sをアセンブル、
+    // リンクしてR形式実行ファイルに変換したものが指定できる。
+    if (!IsValidStrippedZmd(buf, filesize)) {
+      fprintf(stderr, "有効な効果音用ZMDファイルではありません。\n");
+      FreeHumanMemory(buf);
+      return EXIT_FAILURE;
+    }
   }
 
-  zm2_se_play(track, buf + common_size);
+  zm2_se_play(track, buf + skip_size);
   // バッファ上のデータを再生しているので解放しない
 
   return EXIT_SUCCESS;
