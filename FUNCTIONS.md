@@ -257,6 +257,17 @@ int32_t zm2_play_cnv_data_fast(const uint8_t* zmd)
 void zm2_se_play(uint32_t track, const uint8_t* zmd)
 ```
 * 説明: se_play
+  * Z-MUSICでは曲データが演奏されていないときに演奏用のタイマーが停止していることが
+    あります。Z-MUSICの不具合により、`se_play`ファンクションを呼び出しても停止中の
+    タイマーは開始されず効果音が演奏されません。
+    そのような場合は事前にタイマーを開始しておくことで、曲が演奏中でなくても効果音を
+    演奏させることができます。以下の関数を呼ぶことによりタイマーを開始できます。
+    * `zm2_m_tempo_set()`
+    * `zm2_m_play()`、`zm2_m_play_all()` (曲データが未指定でも有効、contとplay2も同じ)
+    * `zm2_m_cont()`、`zm2_m_cont_all()`
+    * `zm2_m_play2()`
+    * `zm2_play_cnv_data()`、`zm2_play_cnv_data_fast()` (いずれも成功した場合のみ)
+    * `zm2_set_timer_value()`
 * 引数:
   * `track`: トラック番号
   * `zmd`: ZMDデータへのポインタ(ファイルヘッダと共通コマンドを飛ばしたアドレス、偶数アドレス)
