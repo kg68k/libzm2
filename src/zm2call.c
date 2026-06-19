@@ -26,6 +26,7 @@
 
 #ifdef __human68k__
 #ifdef __LIBC__
+#define __DOS_INLINE__
 #include <sys/dos.h>
 #define _dos_malloc0(md, size, mep) _dos_malloc0(md, size, (struct _psp*)mep)
 #else
