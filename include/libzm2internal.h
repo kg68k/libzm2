@@ -25,8 +25,9 @@
 
 #define LIBZM2_VERSION_MAJOR 1
 #define LIBZM2_VERSION_MINOR 0
-#define LIBZM2_VERSION_PATCH 0
+#define LIBZM2_VERSION_PATCH 1
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -73,7 +74,7 @@ static const char* zm2__get_trap3_entry(void) {
     uint16_t version = *(const uint16_t*)(vec - 2);
     if (version < 0x3000) return vec;
   }
-  return nullptr;
+  return NULL;
 }
 
 static inline int32_t  //

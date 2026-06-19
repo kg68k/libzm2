@@ -2,6 +2,9 @@
 
 ## Unrelease
 
+### libzm2internal.h
+* C23以外でも`nullptr`を使用していた不具合を修正(`NULL`に変更)。
+
 ### zm2call
 * se_playコマンドで.zmdファイルからヘッダと共通コマンド群を削除したデータの再生に対応。
 
