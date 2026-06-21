@@ -1,6 +1,6 @@
 # 変更履歴
 
-## Unrelease
+## 1.1.0 (2026-06-21)
 
 ### libzm2internal.h
 * C23以外でも`nullptr`を使用していた不具合を修正(`NULL`に変更)。

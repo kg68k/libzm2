@@ -24,8 +24,8 @@
 #define LIBZM2INTERNAL_H_INCLUDED
 
 #define LIBZM2_VERSION_MAJOR 1
-#define LIBZM2_VERSION_MINOR 0
-#define LIBZM2_VERSION_PATCH 1
+#define LIBZM2_VERSION_MINOR 1
+#define LIBZM2_VERSION_PATCH 0
 
 #include <stddef.h>
 #include <stdint.h>
