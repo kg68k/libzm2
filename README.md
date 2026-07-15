@@ -84,8 +84,10 @@ src2buildを使わない場合は、src/内のファイルを適当なツール�
 
 ## License
 
-GNU GENERAL PUBLIC LICENSE Version 3 or later.  
-\+ GCC Runtime Library Exception
+MIT License
+
+※1.1.0までGNU GPL v3以降 + ランタイムライブラリ例外としていましたが、
+2.0.0にてMITに変更しました。
 
 
 ## Author
